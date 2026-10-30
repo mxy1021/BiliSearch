@@ -2,20 +2,18 @@
 
 选中网页文字，右键点击 **在 Bilibili 搜索“选中文字”**，即可在新的活动标签页中搜索。无需复制粘贴，不覆盖当前网页。这是可以直接加载的 Manifest V3 扩展，无需构建或安装 npm 依赖。
 
-## 技术方案与菜单位置限制
+## 技术方案
 
 - Background Service Worker 在 `runtime.onInstalled` 时创建菜单，先清理本扩展的旧菜单，用稳定 ID 避免重复。浏览器持久保存菜单；Worker 唤醒时无需再次创建，点击监听器在顶层同步注册。
 - `chrome.contextMenus.create()` 配置 `contexts: ["selection"]`，仅在文字选区上下文显示。标题 `在 Bilibili 搜索“%s”` 由浏览器替换，无需 Content Script。长选区可能在菜单上被截短，搜索仍使用事件中的完整 `selectionText`。
 - `chrome.contextMenus.onClicked` 获取选区，经 `encodeURIComponent()` 编码后拼接搜索 URL，再调用 `chrome.tabs.create({ url, active: true })`。有来源窗口信息时在同一窗口打开新标签页。
 - 只申请 `contextMenus` 权限。创建标签页无需 `tabs` 权限；无需 `activeTab`、`scripting`、剪贴板、存储或站点权限。
 
-**无法保证菜单紧贴 Edge 原生“在 Web 中搜索”下方。** 当前公开的 Chromium `contextMenus` API 没有 `index`、`before`、`after` 等原生菜单排序参数。`parentId` 指向扩展创建的父菜单，不能用于挂接浏览器原生搜索项。基于公开 API 的能力范围，扩展无法控制与原生菜单项的相对位置。
-
-本项目采用**单个独立菜单项，不设置父菜单、不添加其他菜单项**，尽量减少操作层级。最终位置由 Edge / Chrome 决定，可能随版本、平台或其他扩展变化。不使用私有 API、注册表或注入技巧修改原生菜单。
+本项目采用**单个独立菜单项，不设置父菜单、不添加其他菜单项**，尽量减少操作层级。
 
 官方参考：
 
-- [Chrome contextMenus API：selection、%s、parentId 和事件](https://developer.chrome.com/docs/extensions/reference/api/contextMenus)
+- [Chrome contextMenus API：selection、%s 和事件](https://developer.chrome.com/docs/extensions/reference/api/contextMenus)
 - [Chrome Tabs API：创建标签页无需额外权限](https://developer.chrome.com/docs/extensions/reference/api/tabs)
 - [Edge 的 Chrome 扩展兼容说明](https://learn.microsoft.com/en-us/microsoft-edge/extensions/developer-guide/port-chrome-extension)
 - [Edge 本地加载、更新和错误排查](https://learn.microsoft.com/en-us/microsoft-edge/extensions/getting-started/extension-sideloading)
@@ -96,7 +94,6 @@ https://search.bilibili.com/all?keyword=C%23%20ASP.NET%20Core%20%E6%95%99%E7%A8%
 3. 重新加载扩展后只有一个菜单项。
 4. 关闭 Worker DevTools，等待 Worker 休眠后再点击菜单；重启浏览器后再次测试。
 5. 多次搜索每次新建活动标签页，原网页一直保留。
-6. 观察实际菜单位置，接受浏览器自行安排的位置；不要求与原生搜索项相邻。
 
 扩展保证将浏览器提供的选区编码到 URL；DOM 空白归一化由浏览器决定。Bilibili 的重定向、搜索结果、登录要求及网络访问由站点决定。如果出现验证码，请自行处理。
 
@@ -120,7 +117,6 @@ https://search.bilibili.com/all?keyword=C%23%20ASP.NET%20Core%20%E6%95%99%E7%A8%
 | 没打开新页 | 检查 Worker Console；确认不是空白选区；若正在拖动标签页，结束拖动后重试 |
 | 新页打不开/无结果 | 先核对地址和关键词，再排查网络及站点状态；创建正确 URL 与站点返回结果是两项不同验证 |
 | 扩展卡片显示“错误” | 打开错误详情，修复并重新加载；清除旧错误再复测 |
-| 不在原生搜索项下方 | 公开 API 的排序限制，无扩展设置可修复 |
 
 ## 自动化检查
 
@@ -139,7 +135,7 @@ node --test tests/background.test.cjs
 - 使用本机 **Microsoft Edge 156.0.4314.50**、独立临时配置和无界面模式加载工程，扩展管理 API 返回 `ENABLED`，初始 Manifest / 运行错误列表均为空。
 - 通过 DevTools 协议启动真实扩展 Service Worker；在 Worker 内对已有菜单 ID 执行空更新，确认菜单确实已注册。
 - 在真实 Worker 中直接调用 `tabs.create` 验证最小权限可创建活动标签页。DevTools 观察到目标 URL 与上面的混合编码示例一致，Bilibili 页标题为 `C# ASP.NET Core 教程-哔哩哔哩_bilibili`，原测试标签页仍保留。
-- 该浏览器检查直接调用了标签页 API，没有模拟用户的原生菜单点击；点击处理逻辑由 Node 测试覆盖。**原生右键菜单显示、标题替换、实际菜单位置、菜单点击端到端流程、重启后的交互以及 Chrome 安装仍待人工验收**，不能据此声称这些已通过。
+- 该浏览器检查直接调用了标签页 API，没有模拟用户的原生菜单点击；点击处理逻辑由 Node 测试覆盖。**原生右键菜单显示、标题替换、菜单点击端到端流程、重启后的交互以及 Chrome 安装仍待人工验收**，不能据此声称这些已通过。
 - 测试配置与用户日常 Edge 配置隔离，不将测试扩展安装到日常配置中。
 
 ## 隐私与权限
